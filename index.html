@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quantum Tic-Tac-Toe</title>
+<style>
+  :root {
+    --bg: #10131a;
+    --panel: #1a1f2b;
+    --panel-2: #222838;
+    --line: #2c3444;
+    --text: #e8ecf3;
+    --muted: #8b93a7;
+    --p1: #4fb0ff;
+    --p1-dim: #2c4a66;
+    --p2: #ff7a6b;
+    --p2-dim: #63362f;
+    --accent: #f2c14e;
+    --good: #5ed99b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 32px 16px;
+  }
+  .app { width: 100%; max-width: 920px; }
+  header { text-align: center; margin-bottom: 24px; }
+  h1 { margin: 0 0 4px; font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+  .subtitle { color: var(--muted); font-size: 14px; }
+  .layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
+  @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px;
+  }
+
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    background: var(--panel-2); color: var(--muted); border: none; padding: 8px 14px;
+    cursor: pointer; font-size: 13px; font-weight: 600;
+  }
+  .seg button.active { background: var(--accent); color: #1a1200; }
+  button.primary {
+    background: var(--accent); color: #1a1200; border: none; border-radius: 8px;
+    padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  button.primary:hover { filter: brightness(1.08); }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
+
+  .board {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    aspect-ratio: 1 / 1; max-width: 480px; margin: 0 auto;
+  }
+  .cell {
+    position: relative; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 10px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; overflow: hidden;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .cell.selectable { cursor: pointer; }
+  .cell.selectable:hover { background: #283045; border-color: #3a4256; }
+  .cell.selected { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent); }
+  .mark { font-size: 42px; font-weight: 800; line-height: 1; }
+  .mark.p1 { color: var(--p1); }
+  .mark.p2 { color: var(--p2); }
+  .sub { font-size: 14px; vertical-align: super; opacity: 0.75; }
+  .spookyRow {
+    position: absolute; bottom: 6px; left: 0; right: 0;
+    display: flex; gap: 3px; justify-content: center; flex-wrap: wrap; padding: 0 4px;
+  }
+  .chip {
+    font-size: 10px; font-weight: 700; padding: 1px 4px; border-radius: 5px;
+    border: 1px dashed currentColor; opacity: 0.85;
+  }
+  .chip.p1 { color: var(--p1); }
+  .chip.p2 { color: var(--p2); }
+
+  .status { margin-top: 16px; text-align: center; font-size: 14px; color: var(--muted); min-height: 20px; }
+  .status b { color: var(--text); }
+  .status .p1 { color: var(--p1); font-weight: 700; }
+  .status .p2 { color: var(--p2); font-weight: 700; }
+
+  .forced-panel, .collapse-panel { margin-top: 14px; text-align: center; }
+  .collapse-options { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .collapse-option {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; cursor: pointer; font-size: 12px; text-align: left; max-width: 240px;
+  }
+  .collapse-option:hover { border-color: var(--accent); }
+  .collapse-option div { margin: 2px 0; }
+
+  .sidebar h2 { font-size: 14px; margin: 0 0 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .log { max-height: 360px; overflow-y: auto; font-size: 13px; line-height: 1.6; }
+  .log div { padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .log div:last-child { border-bottom: none; }
+
+  .result { margin-top: 16px; padding: 14px; border-radius: 10px; background: var(--panel-2); font-size: 13px; }
+  .result .margin { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+  .result .margin.good { color: var(--good); }
+  .result .margin.bad { color: var(--p2); }
+  .result .margin.even { color: var(--accent); }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Quantum Tic-Tac-Toe</h1>
+    <div class="subtitle">Perfect AI &mdash; every move is the exact game-theoretic optimum, computed from the fully solved game</div>
+  </header>
+
+  <div class="layout">
+    <div class="panel">
+      <div class="controls">
+        <div class="seg" id="sideSeg">
+          <button data-side="1" class="active">Play as P1 (X)</button>
+          <button data-side="2">Play as P2 (O)</button>
+        </div>
+        <button class="primary" id="newGameBtn">New Game</button>
+      </div>
+
+      <div class="board" id="board"></div>
+
+      <div class="status" id="status">Loading&hellip;</div>
+
+      <div class="forced-panel" id="forcedPanel" style="display:none">
+        <button class="primary" id="forcedBtn">Place forced mark</button>
+      </div>
+
+      <div class="collapse-panel" id="collapsePanel" style="display:none">
+        <div class="status" style="margin-bottom:10px">Entangled! Choose how it collapses:</div>
+        <div class="collapse-options" id="collapseOptions"></div>
+      </div>
+
+      <div class="result" id="result" style="display:none"></div>
+    </div>
+
+    <div class="sidebar panel">
+      <h2>Move log</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <footer>The proven value of QT3 is +0.5 (P1 wins by half a point) under optimal play by both sides.</footer>
+</div>
+
+<script>
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+const resultEl = document.getElementById('result');
+const forcedPanel = document.getElementById('forcedPanel');
+const collapsePanel = document.getElementById('collapsePanel');
+const collapseOptionsEl = document.getElementById('collapseOptions');
+
+let humanSide = 1;
+let state = null;
+let selectedCell = null;
+let busy = false;
+
+function cellName(i) { return String.fromCharCode(65 + Math.floor(i/3)) + (i % 3 + 1); }
+function playerName(p) { return p === 1 ? 'P1' : 'P2'; }
+function playerClass(p) { return p === 1 ? 'p1' : 'p2'; }
+
+async function cmd(c) {
+  const res = await fetch('/api/cmd', { method: 'POST', body: c });
+  return res.json();
+}
+
+function render() {
+  // Board
+  boardEl.innerHTML = '';
+  const humanTurn = !state.terminal && state.decider === humanSide;
+  const canPick = humanTurn && state.mode === 'MOVE' && state.forcedCell === null;
+  for (let i = 0; i < 9; i++) {
+    const cellState = state.board[i];
+    const div = document.createElement('div');
+    div.className = 'cell';
+    if (cellState.owner === 0 && canPick) {
+      div.classList.add('selectable');
+      div.onclick = () => onCellClick(i);
+    }
+    if (selectedCell === i) div.classList.add('selected');
+
+    if (cellState.owner !== 0) {
+      const mark = document.createElement('div');
+      mark.className = 'mark ' + playerClass(cellState.owner);
+      mark.innerHTML = (cellState.owner === 1 ? 'X' : 'O') + '<span class="sub">' + cellState.sub + '</span>';
+      div.appendChild(mark);
+    } else {
+      const spookies = state.spooky.filter(s => s.cell === i);
+      if (spookies.length) {
+        const row = document.createElement('div');
+        row.className = 'spookyRow';
+        for (const s of spookies) {
+          const chip = document.createElement('div');
+          chip.className = 'chip ' + playerClass(s.player);
+          chip.textContent = (s.player === 1 ? 'X' : 'O') + s.t;
+          row.appendChild(chip);
+        }
+        div.appendChild(row);
+      }
+    }
+    boardEl.appendChild(div);
+  }
+
+  // Status / panels
+  forcedPanel.style.display = 'none';
+  collapsePanel.style.display = 'none';
+  resultEl.style.display = 'none';
+
+  if (state.terminal) {
+    statusEl.innerHTML = '<b>Game over</b>';
+    showResult();
+    return;
+  }
+
+  const turnLabel = '<span class="' + playerClass(state.decider) + '">' + playerName(state.decider) + '</span>';
+  if (state.decider !== humanSide) {
+    statusEl.innerHTML = turnLabel + ' (AI) is thinking&hellip;';
+  } else if (state.mode === 'COLLAPSE') {
+    statusEl.innerHTML = 'Your turn (' + turnLabel + ') to resolve the collapse.';
+    showCollapseOptions();
+  } else if (state.forcedCell !== null) {
+    statusEl.innerHTML = 'Your turn (' + turnLabel + ') &mdash; only one cell left.';
+    forcedPanel.style.display = 'block';
+    document.getElementById('forcedBtn').textContent = 'Place forced mark on ' + cellName(state.forcedCell);
+  } else if (selectedCell === null) {
+    statusEl.innerHTML = 'Your turn (' + turnLabel + ') &mdash; click a cell to place your first mark.';
+  } else {
+    statusEl.innerHTML = 'Your turn (' + turnLabel + ') &mdash; click a second cell (' + cellName(selectedCell) + ' selected).';
+  }
+}
+
+function showCollapseOptions() {
+  collapsePanel.style.display = 'block';
+  collapseOptionsEl.innerHTML = '';
+  state.collapseOptions.forEach((opt, idx) => {
+    const div = document.createElement('div');
+    div.className = 'collapse-option';
+    div.innerHTML = opt.map(c =>
+      '<div><b>' + cellName(c.cell) + '</b> &rarr; ' +
+      '<span class="' + playerClass(c.owner) + '">' + (c.owner === 1 ? 'X' : 'O') + c.sub + '</span></div>'
+    ).join('');
+    div.onclick = async () => {
+      if (busy) return;
+      busy = true;
+      state = await cmd('COLLAPSE ' + (idx + 1));
+      appendLog();
+      busy = false;
+      afterMove();
+    };
+    collapseOptionsEl.appendChild(div);
+  });
+}
+
+function showResult() {
+  resultEl.style.display = 'block';
+  const v = state.score / 840;
+  let cls = 'even', text;
+  if (v > 0) { cls = humanSide === 1 ? 'good' : 'bad'; text = 'P1 wins by ' + v; }
+  else if (v < 0) { cls = humanSide === 2 ? 'good' : 'bad'; text = 'P2 wins by ' + (-v); }
+  else { text = 'Draw'; }
+  let html = '<div class="margin ' + cls + '">' + text + ' (margin ' + (v>0?'+':'') + v + ')</div>';
+  if (state.wonLines.length === 0) {
+    html += 'No lines were completed &mdash; draw by exhaustion.';
+  } else {
+    html += 'Won lines, in scoring order:<br>';
+    for (const w of state.wonLines) {
+      html += 'rank ' + w.rank + ': {' + w.line.map(cellName).join(',') + '} &rarr; ' +
+        '<span class="' + playerClass(w.owner) + '">' + playerName(w.owner) + '</span>, award ' +
+        w.award + '/840<br>';
+    }
+  }
+  resultEl.innerHTML = html;
+}
+
+function appendLog() {
+  const a = state.lastAction;
+  if (a.type === 'none') return;
+  const div = document.createElement('div');
+  const who = '<span class="' + playerClass(a.player) + '">' + playerName(a.player) + '</span>';
+  if (a.type === 'place') div.innerHTML = who + ' places on {' + a.cells.map(cellName).join(', ') + '}';
+  else if (a.type === 'forced') div.innerHTML = who + ' forced placement (last cell)';
+  else if (a.type === 'collapse') div.innerHTML = who + ' resolves the collapse';
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function afterMove() {
+  selectedCell = null;
+  render();
+  if (!state.terminal && state.decider !== humanSide) {
+    busy = true;
+    setTimeout(async () => {
+      state = await cmd('AIMOVE');
+      appendLog();
+      busy = false;
+      afterMove();
+    }, 350); // small pause so the AI's move is visible, not instantaneous-feeling
+  }
+}
+
+async function onCellClick(i) {
+  if (busy) return;
+  if (selectedCell === null) { selectedCell = i; render(); return; }
+  if (selectedCell === i) { selectedCell = null; render(); return; }
+  busy = true;
+  const a = selectedCell, b = i;
+  selectedCell = null;
+  state = await cmd('MOVE ' + Math.min(a,b) + ' ' + Math.max(a,b));
+  appendLog();
+  busy = false;
+  afterMove();
+}
+
+document.getElementById('forcedBtn').onclick = async () => {
+  if (busy) return;
+  busy = true;
+  state = await cmd('FORCED');
+  appendLog();
+  busy = false;
+  afterMove();
+};
+
+document.getElementById('newGameBtn').onclick = async () => {
+  logEl.innerHTML = '';
+  selectedCell = null;
+  state = await cmd('NEW');
+  afterMove();
+};
+
+document.getElementById('sideSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  humanSide = parseInt(btn.dataset.side, 10);
+  [...document.getElementById('sideSeg').children].forEach(b => b.classList.toggle('active', b === btn));
+  document.getElementById('newGameBtn').click();
+});
+
+(async () => {
+  state = await cmd('STATE');
+  afterMove();
+})();
+</script>
+</body>
+</html>
